@@ -31,6 +31,8 @@ int n_choices = sizeof(choices) / sizeof(char *);
 
 // Task 1: Increments a counter in Window 1
 void *task1_func(void *arg) {
+    (void)arg;
+
     if (task1_running) return NULL;
     task1_running = true;
 
@@ -51,6 +53,8 @@ void *task1_func(void *arg) {
 
 // Task 2: Displays a bouncing visual character in Window 2
 void *task2_func(void *arg) {
+    (void)arg;
+
     if (task2_running) return NULL;
     task2_running = true;
 
@@ -80,6 +84,8 @@ void *task2_func(void *arg) {
 
 // Task 3: Simulates a data loading spinner in Window 3
 void *task3_func(void *arg) {
+    (void)arg;
+
     if (task3_running) return NULL;
     task3_running = true;
 
