@@ -25,9 +25,9 @@ int verify_odd_parity(uint32_t word) {
 }
 
 int main() {
-    FILE *file = fopen("altitude.txt", "r");
+    FILE *file = fopen("altitude-hex.txt", "r");
     if (file == NULL) {
-        perror("Error opening altitude.txt");
+        perror("Error opening altitude-hex.txt");
         return 1;
     }
 

@@ -15,6 +15,19 @@ void sleep_us(long microseconds) {
     nanosleep(&ts, NULL);
 }
 
+// Function to verify if a 32-bit word has Odd Parity
+int verify_odd_parity(uint32_t word) {
+    uint32_t count = 0;
+    // Count total number of set bits (1s) across all 32 bits
+    for (int i = 0; i < 32; i++) {
+        if ((word >> i) & 1) {
+            count++;
+        }
+    }
+    // Return 1 if odd (valid), 0 if even (invalid)
+    return (count % 2 != 0);
+}
+
 // Helper to reverse bits for the Label (ARINC 429 Labels are usually read in Octal, reversed)
 uint8_t reverse_bits(uint8_t num) {
     uint8_t count = 8;
@@ -32,9 +45,9 @@ int main() {
     int packet_count = 0;
 
     // 1. Open the file
-    FILE *file = fopen("altitude.txt", "r");
+    FILE *file = fopen("altitude-hex.txt", "r");
     if (file == NULL) {
-        perror("Error opening altitude.txt");
+        perror("Error opening altitude-hex.txt");
         return EXIT_FAILURE;
     }
 
@@ -51,8 +64,6 @@ int main() {
 
     printf("Loaded %d packets. Streaming and decoding at 100 kbps...\n", packet_count);
     printf("---------------------------------------------------------------------------\n");
-    printf("%-12s | %-7s | %-5s | %-10s | %-5s | %-8s\n", "Raw Hex", "Label(Oct)", "SDI", "Data(Hex)", "SSM", "Parity");
-    printf("---------------------------------------------------------------------------\n");
 
     // 3. Continuously stream and decode packets at 100 kbps
     int i = 0;
@@ -62,16 +73,17 @@ int main() {
         // Extract bit fields using masks and shifts
         uint8_t raw_label = raw_word & 0xFF;                 // Bits 1-8
         uint8_t sdi       = (raw_word >> 8) & 0x03;          // Bits 9-10
-        uint32_t data     = (raw_word >> 10) & 0x7FFFF;      // Bits 11-29
-        uint8_t ssm       = (raw_word >> 29) & 0x03;         // Bits 30-31
-        uint8_t parity    = (raw_word >> 31) & 0x01;         // Bit 32
+        uint32_t data     = (raw_word >> 10) & 0x3FFFF;      // Bits 11-28
+        uint8_t ssm       = (raw_word >> 28) & 0x03;         // Bits 30-31
+        int parity_valid = verify_odd_parity(raw_word);
 
         // ARINC 429 convention displays labels in Octal with reversed bit transmission
         uint8_t octal_label = reverse_bits(raw_label);
 
         // Print decoded breakdown
-        printf("0x%08X   | %03o        | %d     |  %-8u    | %d   | %d\n", 
-               raw_word, octal_label, sdi, data, ssm, parity);
+        printf("Raw Hex 0x%08X | Label %03o   |  Data(Dec) %-8u |  SDI %-5u | SSM %-6u %s\n", 
+                raw_word, octal_label, data, sdi, ssm, 
+               parity_valid ? "" : "[PARITY ERROR]");
         
         // Flush standard output immediately to maintain timing accuracy
         fflush(stdout); 
