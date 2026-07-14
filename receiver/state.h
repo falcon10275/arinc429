@@ -6,8 +6,8 @@
 typedef struct {
     int altitude;
     int rpm;
-    float fuel;
-    float heading;
+    int fuel;
+    int bank_angle;
 } FlightData;
 
 // Extern declarations mean "these exist somewhere, trust me"

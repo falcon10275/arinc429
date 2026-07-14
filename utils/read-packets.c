@@ -57,7 +57,7 @@ int main() {
 
         // Print extracted fields
         // Label is printed in standard 3-digit octal format (%03o)
-        printf("Packet %-5d | Raw Hex 0x%08X | Label %03o   |  Data(Dec) %-8u |  SDI %-5u | SSM %-6u %s\n", 
+        printf("Packet %-5d | Raw Hex 0x%08X | Label %03o   |  Data (Dec) %-8u |  SDI %-5u | SSM %-6u %s\n", 
                packet_count, arinc_word, octal_label, data, sdi, ssm, 
                parity_valid ? "" : "[PARITY ERROR]");
     }
