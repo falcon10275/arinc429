@@ -1,1 +1,6 @@
 a.out
+*.o
+.DS_Store
+recv429
+send429
+

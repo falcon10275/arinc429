@@ -4,7 +4,7 @@
 extern int throttle_pct;
 extern int bank_angle;
 extern int pitch_angle;
-extern float altitude;
+extern int altitude;
 extern int rpm;
 
 #endif // FLIGHT_STATE_H

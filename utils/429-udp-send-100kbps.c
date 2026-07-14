@@ -7,8 +7,8 @@
 
 #define TARGET_IP "127.0.0.1"
 #define TARGET_PORT 9999
-#define INTERVAL_US_429_HIGH 3680000 // ~100kbps  ARINC 429 HIGH SPEED
-#define INTERVAL_US_429_LOW 29440000 // ~12.5kbps ARINC 429 LOW SPEED
+#define INTERVAL_US_429_HIGH_SPEED 3680000 // ~100kbps  ARINC 429 HIGH SPEED
+#define INTERVAL_US_429_LOW_SPEED 29440000 // ~12.5kbps ARINC 429 LOW SPEED
 
 uint32_t generate_random_arinc() {
     // Randomize fields: 8-bit label, 2-bit SDI, 19-bit data, 2-bit SSM, 1-bit parity
@@ -53,7 +53,7 @@ int main() {
         long elapsed_ns = (end.tv_sec - start.tv_sec) * 1000000000L + (end.tv_nsec - start.tv_nsec);
     
         // Calculate remaining sleep time
-        long sleep_time_ns = INTERVAL_US_429_HIGH - elapsed_ns;
+        long sleep_time_ns = INTERVAL_US_429_HIGH_SPEED - elapsed_ns;
 
         // Sleep if we are still ahead of schedule
         if (sleep_time_ns > 0) {
