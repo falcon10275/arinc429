@@ -30,9 +30,6 @@ void* arinc_sender_thread(void* arg)
 
     while (keep_running) {
  
-        struct timespec start, end;
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        
         // 1. Lock the mutex and copy variables to minimize lock hold time
         pthread_mutex_lock(&flight_data_mutex);
         local_altitude = altitude;
@@ -67,18 +64,8 @@ void* arinc_sender_thread(void* arg)
         arinc429_set_parity(&arinc_word, 1);       
         udp_sender_send(sender, arinc_word.raw);
 
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        
-        long elapsed_ns = (end.tv_sec - start.tv_sec) * 1000000000L + (end.tv_nsec - start.tv_nsec);
-    
-        // Calculate remaining sleep time
-        long sleep_time_ns = INTERVAL_US_429_HIGH_SPEED - elapsed_ns;
+         usleep(50000);
 
-        // Sleep if we are still ahead of schedule
-        if (sleep_time_ns > 0) {
-            struct timespec sleep_req = {0, sleep_time_ns};
-            nanosleep(&sleep_req, NULL);
-        } 
     }
 
     return NULL;
