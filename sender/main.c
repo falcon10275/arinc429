@@ -34,7 +34,7 @@ void* arinc_sender_thread(void* arg)
         pthread_mutex_lock(&flight_data_mutex);
         local_altitude = altitude;
         local_rpm = rpm;
-        local_bank_angle = bank_angle;
+        local_bank_angle = abs(bank_angle);
         pthread_mutex_unlock(&flight_data_mutex);
 
         // 2. Send out the Altitude

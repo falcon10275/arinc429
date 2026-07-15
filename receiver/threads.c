@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <ncurses.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -123,7 +124,7 @@ void* thread_heading(void* arg) {
     WINDOW* win = (WINDOW*)arg;
     while (keep_running) {
         pthread_mutex_lock(&data_mutex);
-        float current_hdg = fd.bank_angle;
+        int current_hdg = fd.bank_angle;
         pthread_mutex_unlock(&data_mutex);
 
         pthread_mutex_lock(&screen_mutex);
@@ -169,28 +170,35 @@ void* thread_receive_429_udp(void* arg) {
     }
 
     while (keep_running) {
-            arinc429_word_t word;
+        arinc429_word_t word;
+
+        pthread_mutex_lock(&screen_mutex);
+        box(win, 0, 0); 
+        mvwprintw(win, 0, 2, " ARINC 429 LOG ");
+        wrefresh(win);
+        wrefresh(sub_win);
+        pthread_mutex_unlock(&screen_mutex);
  
-            pthread_mutex_lock(&screen_mutex);
-            box(win, 0, 0); 
-            mvwprintw(win, 0, 2, " ARINC 429 LOG ");
-            wrefresh(win);
-
-            wprintw(sub_win, "Label: %03o Data: %-8u\n", word.fields.label, word.fields.data);
-            wprintw(sub_win, "SDI: %-5u  SSM: %-6u\n", word.fields.sdi, word.fields.ssm);
-            wprintw(sub_win, "----------------------------\n");
-          
-            wrefresh(sub_win);
-            pthread_mutex_unlock(&screen_mutex);
-
-        unsigned long n = recvfrom(sockfd, buffer, BUF_SIZE, MSG_WAITALL,
+        int n = recvfrom(sockfd, buffer, BUF_SIZE, MSG_DONTWAIT,
                          (struct sockaddr *)&client_addr, &client_len);
+
         if (n < 0) {
-            continue;
+            // Check if the error is just "no data available right now"
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // Adding a small sleep prevents this tight while(1) loop 
+                // from consuming 100% of your CPU core while waiting.
+                // 10,000 microseconds = 10 milliseconds
+                usleep(10000); 
+                continue;
+            } else {
+                // A genuine network/socket error occurred
+                usleep(100000); // Sleep briefly before retrying to avoid log spam on critical failure
+                continue;
+            }
         }
 
         // Check if the received packet has at least 4 bytes for a 32-bit word
-        if (n >= sizeof(uint32_t)) {
+        if ((unsigned long)n >= sizeof(uint32_t)) {
 
             uint32_t raw_data;
 
@@ -198,21 +206,30 @@ void* thread_receive_429_udp(void* arg) {
             memcpy(&raw_data, buffer, sizeof(uint32_t));
 
             // Assign to the union. 
-            // Note: If the sender uses network byte order (htonl), you will need 
-            // to wrap raw_data in ntohl(raw_data) before assigning it here.
             word.raw = ntohl(raw_data);
 
             pthread_mutex_lock(&data_mutex);
                 switch (word.fields.label)
                 {
                     case ARINC_ALTITUDE_LABEL : fd.altitude = word.fields.data;
+                        break;
                     case ARINC_RPM_LABEL : fd.rpm = word.fields.data;
-                    case ARINC_BANK_ANGLE_LABEL : fd.bank_angle = word.fields.data;
+                        break;
+                   case ARINC_BANK_ANGLE_LABEL : fd.bank_angle = word.fields.data;
+                        break;
+                    default : break;
                 }
             pthread_mutex_unlock(&data_mutex);
-
-            usleep(150); 
         }
+
+        pthread_mutex_lock(&screen_mutex);
+        if (word.raw != 0) {
+            wprintw(sub_win, "Label: %#x Data: %-8u\n", word.fields.label, word.fields.data);
+            wprintw(sub_win, "    SDI: %-5u  SSM: %-6u\n", word.fields.sdi, word.fields.ssm);
+            wprintw(sub_win, "----------------------------\n");
+        }  
+        wrefresh(sub_win);
+        pthread_mutex_unlock(&screen_mutex);
     }
 
     close(sockfd);
