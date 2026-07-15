@@ -7,8 +7,6 @@
 #include "threads.h"
 
 
-#define THREAD_COUNT 5
-
 int main() {
     srand(time(NULL));
 
@@ -34,7 +32,8 @@ int main() {
     pthread_create(&threads[1], NULL, thread_rpm, win_rpm);
     pthread_create(&threads[2], NULL, thread_fuel, win_fuel);
     pthread_create(&threads[3], NULL, thread_heading, win_hdg);
-    pthread_create(&threads[4], NULL, thread_receive_429_udp, win_log);
+    pthread_create(&threads[5], NULL, thread_logger, win_log);
+    pthread_create(&threads[5], NULL, thread_receive_429_udp, NULL);
 
     int ch;
     while (keep_running) {

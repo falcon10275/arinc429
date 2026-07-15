@@ -138,12 +138,40 @@ void* thread_heading(void* arg) {
     }
     return NULL;
 }
-
-void* thread_receive_429_udp(void* arg) {
+void* thread_logger(void* arg) {
     WINDOW* win = (WINDOW*)arg;
     WINDOW* sub_win = derwin(win, 16, 28, 1, 1);
     scrollok(sub_win, TRUE); 
+   
+    while (keep_running) {
+        pthread_mutex_lock(&data_mutex);
+        pthread_mutex_lock(&screen_mutex);
+        box(win, 0, 0); 
+        mvwprintw(win, 0, 2, " ARINC 429 LOG ");
+        wrefresh(win);
+        wrefresh(sub_win);
+        // Loop through all new messages in the queue
+        while (log_tail != log_head) {
+            arinc429_word_t current_word = log_queue[log_tail];
+            log_tail = (log_tail + 1) % LOG_QUEUE_SIZE; // Advance tail
+            wprintw(sub_win, "RAW: 0x%08X Label: 0x%02X\n", current_word.raw, current_word.fields.label);
+            wprintw(sub_win, "  Data: %-8u\n", current_word.fields.data);
+            wprintw(sub_win, "    SDI: %-5u SSM: %-6u\n", current_word.fields.sdi, current_word.fields.ssm);
 
+        }
+        wrefresh(sub_win);
+        pthread_mutex_unlock(&screen_mutex);
+        pthread_mutex_unlock(&data_mutex);
+
+        usleep(100000); 
+    }
+    delwin(sub_win); 
+    return NULL;
+}
+
+
+void* thread_receive_429_udp(void* arg) {
+    (void)arg;
     int sockfd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -172,13 +200,6 @@ void* thread_receive_429_udp(void* arg) {
     while (keep_running) {
         arinc429_word_t word;
 
-        pthread_mutex_lock(&screen_mutex);
-        box(win, 0, 0); 
-        mvwprintw(win, 0, 2, " ARINC 429 LOG ");
-        wrefresh(win);
-        wrefresh(sub_win);
-        pthread_mutex_unlock(&screen_mutex);
- 
         int n = recvfrom(sockfd, buffer, BUF_SIZE, MSG_DONTWAIT,
                          (struct sockaddr *)&client_addr, &client_len);
 
@@ -209,6 +230,9 @@ void* thread_receive_429_udp(void* arg) {
             word.raw = ntohl(raw_data);
 
             pthread_mutex_lock(&data_mutex);
+                 // Add to queue
+                log_queue[log_head].raw = word.raw;
+                log_head = (log_head + 1) % LOG_QUEUE_SIZE; // Advance head, wrap around
                 switch (word.fields.label)
                 {
                     case ARINC_ALTITUDE_LABEL : fd.altitude = word.fields.data;
@@ -221,19 +245,9 @@ void* thread_receive_429_udp(void* arg) {
                 }
             pthread_mutex_unlock(&data_mutex);
         }
-
-        pthread_mutex_lock(&screen_mutex);
-        if (word.raw != 0) {
-            wprintw(sub_win, "Label: %#x Data: %-8u\n", word.fields.label, word.fields.data);
-            wprintw(sub_win, "    SDI: %-5u  SSM: %-6u\n", word.fields.sdi, word.fields.ssm);
-            wprintw(sub_win, "----------------------------\n");
-        }  
-        wrefresh(sub_win);
-        pthread_mutex_unlock(&screen_mutex);
     }
 
     close(sockfd);
-    delwin(sub_win); 
     return NULL;
 }
 
