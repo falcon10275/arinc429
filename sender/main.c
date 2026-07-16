@@ -26,7 +26,9 @@ void* arinc_sender_thread(void* arg)
     udp_sender_t* sender = (udp_sender_t*)arg;
     arinc429_word_t arinc_word;
     
-    int local_altitude, local_rpm, local_bank_angle;
+    double local_altitude; 
+    int local_rpm; 
+    int local_bank_angle;
 
     while (keep_running) {
  
@@ -38,13 +40,8 @@ void* arinc_sender_thread(void* arg)
         pthread_mutex_unlock(&flight_data_mutex);
 
         // 2. Send out the Altitude
-        arinc_word.raw = 0;
-        arinc429_set_label(&arinc_word, ARINC_ALTITUDE_LABEL);       
-        arinc429_set_sdi(&arinc_word, 2);           
-        arinc429_set_data(&arinc_word, local_altitude);     
-        arinc429_set_ssm(&arinc_word, 3);           
-        arinc429_set_parity(&arinc_word, 1);       
-        udp_sender_send(sender, arinc_word.raw);
+        uint32_t alt_word = encode_altitude(local_altitude, 1, SSM_NORMAL_OPERATION);
+        udp_sender_send(sender, alt_word);
 
         // 3. Send out the RPM
         arinc_word.raw = 0;
