@@ -6,10 +6,10 @@
 #include "../common/arinc_429.h"
 
 typedef struct {
-    int altitude;
-    int rpm;
-    int fuel;
-    int bank_angle;
+    double altitude;
+    double rpm;
+    double fuel;
+    double bank_angle;
 } FlightData;
 
 // Extern declarations mean "these exist somewhere, trust me"

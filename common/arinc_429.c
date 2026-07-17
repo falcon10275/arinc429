@@ -28,31 +28,39 @@ uint32_t set_odd_parity(uint32_t word) {
     return temp;
 }
 
-void arinc429_set_label(arinc429_word_t *word, uint32_t label) {
-    word->fields.label = label & 0xFF;       // 8 bits max
+uint8_t get_decoded_label(uint32_t word) {
+    uint8_t raw_label = word & 0xFF;
+    uint8_t rev = 0;
+    for (int i = 0; i < 8; i++) {
+        rev |= ((raw_label >> i) & 1) << (7 - i);
+    }
+    return rev;
 }
 
-void arinc429_set_sdi(arinc429_word_t *word, uint32_t sdi) {
-    word->fields.sdi = sdi & 0x03;           // 2 bits max
+uint8_t extract_arinc_label(uint32_t word) {
+    uint8_t raw_label = (uint8_t)(word & 0xFF);
+    uint8_t decoded_label = 0;
+    for (int i = 0; i < 8; i++) {
+        decoded_label |= ((raw_label >> i) & 1) << (7 - i);
+    }
+    return decoded_label;
 }
 
-void arinc429_set_data(arinc429_word_t *word, uint32_t data) {
-    word->fields.data = data & 0x7FFFF;      // 19 bits max
-}
-
-void arinc429_set_ssm(arinc429_word_t *word, uint32_t ssm) {
-    word->fields.ssm = ssm & 0x03;           // 2 bits max
-}
-
-void arinc429_set_parity(arinc429_word_t *word, uint32_t parity) {
-    word->fields.parity = parity & 0x01;     // 1 bit max
+bool verify_parity(uint32_t word) {
+    uint32_t count = 0;
+    for (int i = 0; i < 32; i++) {
+        if ((word >> i) & 1) {
+            count++;
+        }
+    }
+    return (count % 2 != 0);
 }
 
 uint32_t encode_altitude(double altitude_ft, uint8_t sdi, uint8_t ssm) {
     uint32_t word = 0;
     
     // 1. Label (203 Octal = 0x83 Hex)
-    uint8_t rev_label = reverse_label_bits(0x83);
+    uint8_t rev_label = reverse_label_bits(LABEL_ALTITUDE);
     word |= (rev_label & 0xFF);
 
     // 2. SDI (Bits 9-10)
@@ -83,12 +91,36 @@ uint32_t encode_altitude(double altitude_ft, uint8_t sdi, uint8_t ssm) {
     return set_odd_parity(word);
 }
 
+DecodedArincWord decode_altitude(uint32_t word) {
+    DecodedArincWord result;
+    
+    result.parity_valid = verify_parity(word);
+    result.label = get_decoded_label(word);
+    result.sdi = (word >> 8) & 0x03;
+    result.ssm = (word >> 29) & 0x03;
+
+    // Extract raw data field: 17 bits (Bits 12-28)
+    uint32_t raw_data = (word >> 11) & 0x1FFFF;
+    
+    // Extract sign bit: Bit 29 (1 = Negative, 0 = Positive)
+    uint32_t sign_bit = (word >> 28) & 0x01;
+
+    double alt_val = (double)raw_data; // Scale is 1.0 LSB = 1 ft
+    if (sign_bit == 1) {
+        alt_val = -alt_val;
+    }
+    
+    result.value = alt_val;
+    return result;
+}
+
+
 
 uint32_t encode_bank_angle(double angle_deg, uint8_t sdi, uint8_t ssm) {
     uint32_t word = 0;
     
     // 1. Label (325 Octal = 0xD5 Hex)
-    uint8_t rev_label = reverse_label_bits(0xD5);
+    uint8_t rev_label = reverse_label_bits(LABEL_BANK_ANGLE);
     word |= (rev_label & 0xFF);
 
     // 2. SDI (Bits 9-10)
@@ -119,23 +151,43 @@ uint32_t encode_bank_angle(double angle_deg, uint8_t sdi, uint8_t ssm) {
     return set_odd_parity(word);
 }
 
+DecodedArincWord decode_bank_angle(uint32_t word) {
+    DecodedArincWord result;
+    
+    result.parity_valid = verify_parity(word);
+    result.label = get_decoded_label(word);
+    result.sdi = (word >> 8) & 0x03;
+    result.ssm = (word >> 29) & 0x03;
+
+    // Extract raw data field: 15 bits (Bits 14-28)
+    uint32_t raw_data = (word >> 13) & 0x7FFF;
+    
+    // Extract sign bit: Bit 29 (1 = Left/Minus, 0 = Right/Plus)
+    uint32_t sign_bit = (word >> 28) & 0x01;
+
+    // Scale back: (raw_data * 180.0) / 2^15
+    double angle_val = ((double)raw_data * 180.0) / 32768.0;
+    if (sign_bit == 1) {
+        angle_val = -angle_val;
+    }
+    
+    result.value = angle_val;
+    return result;
+}
+
 uint32_t encode_engine_rpm(double rpm_percent, uint8_t sdi, uint8_t ssm) {
     uint32_t word = 0;
     
     // 1. Label (341 Octal = 0xE1 Hex)
-    uint8_t rev_label = reverse_label_bits(0xE1);
+    uint8_t rev_label = reverse_label_bits(LABEL_ENGINE_RPM);
     word |= (rev_label & 0xFF);
 
     // 2. SDI (Bits 9-10)
     word |= ((sdi & 0x03) << 8);
 
-    // Clamp value
-    if (rpm_percent > 110.0) rpm_percent = 110.0;
-    if (rpm_percent < 0.0) rpm_percent = 0.0;
-
     // Convert to Binary: Scale factor uses Bit 28 = 64%, mapping to 18 bits (Bits 11-28)
     // Bit 29 is often part of the data field or unused sign here since RPM is always positive.
-    uint32_t data_val = (uint32_t)round(rpm_percent * (262144.0 / 128.0));
+    uint32_t data_val = (uint32_t)round(rpm_percent);
     word |= ((data_val & 0x3FFFF) << 10); // 18 bits of data (Bits 11-28)
 
     // 3. SSM (Bits 29-30 or 30-31 depending on system layout, using Bits 29-30 standard for BNR)
@@ -143,4 +195,20 @@ uint32_t encode_engine_rpm(double rpm_percent, uint8_t sdi, uint8_t ssm) {
 
     // 4. Odd Parity (Bit 32)
     return set_odd_parity(word);
+}
+
+DecodedArincWord decode_engine_rpm(uint32_t word) {
+    DecodedArincWord result;
+    
+    result.parity_valid = verify_parity(word);
+    result.label = get_decoded_label(word);
+    result.sdi = (word >> 8) & 0x03;
+    result.ssm = (word >> 29) & 0x03;
+
+    // Extract raw data field: 18 bits (Bits 11-28)
+    uint32_t raw_data = (word >> 10) & 0x3FFFF;
+
+    result.value = (double)raw_data;
+    
+    return result;
 }

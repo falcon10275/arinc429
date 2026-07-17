@@ -26,10 +26,6 @@ An ARINC 429 word is 32 bits wide and is structured as follows:
 #define LABEL_BANK_ANGLE 0325  // Octal 325 (Decimal 213)
 #define LABEL_ENGINE_RPM 0341  // Octal 341 (Decimal 225)
 
-#define ARINC_ALTITUDE_LABEL 0x83
-#define ARINC_RPM_LABEL 0xe4
-#define ARINC_BANK_ANGLE_LABEL 0xd5
-
 typedef struct {
     uint8_t label;
     uint8_t sdi;
@@ -53,15 +49,14 @@ typedef union {
 // (ARINC 429 transmits Bit 1 as Label MSB, effectively reversing standard octal representation)
 uint8_t reverse_label_bits(uint8_t label); 
 
-// Helper function to calculate and set ODD parity on bit 32
-uint32_t set_odd_parity(uint32_t word);
+// Helper function to reverse 8-bit label
+uint8_t get_decoded_label(uint32_t word);
 
-void arinc429_set_label(arinc429_word_t *word, uint32_t label);
-void arinc429_set_sdi(arinc429_word_t *word, uint32_t sdi);
-void arinc429_set_data(arinc429_word_t *word, uint32_t data);
-void arinc429_set_ssm(arinc429_word_t *word, uint32_t ssm);
-void arinc429_set_parity(arinc429_word_t *word, uint32_t parity);
+uint8_t extract_arinc_label(uint32_t word);
 
+// Helper function to check for ODD parity
+// Returns true if the parity is correct (odd number of 1s across the 32-bit word)
+bool verify_parity(uint32_t word);
 
 // -----------------------------------------------------------------------------
 // 1. Altitude Simulation (Label 203 Octal - Barometric Altitude)
@@ -69,6 +64,8 @@ void arinc429_set_parity(arinc429_word_t *word, uint32_t parity);
 // Standard resolution (LSB) = 1.0 ft. Uses Bits 12-28 for data, Bit 29 for sign.
 // -----------------------------------------------------------------------------
 uint32_t encode_altitude(double altitude_ft, uint8_t sdi, uint8_t ssm);
+
+DecodedArincWord decode_altitude(uint32_t word);
 
 // -----------------------------------------------------------------------------
 // 2. Bank Angle Simulation (Label 325 Octal - Roll/Bank Angle)
@@ -78,11 +75,15 @@ uint32_t encode_altitude(double altitude_ft, uint8_t sdi, uint8_t ssm);
 // -----------------------------------------------------------------------------
 uint32_t encode_bank_angle(double angle_deg, uint8_t sdi, uint8_t ssm);
 
+DecodedArincWord decode_bank_angle(uint32_t word);
+
 // -----------------------------------------------------------------------------
 // 3. Engine RPM Simulation (Label 341 Octal - Engine N1/N2 Percent RPM)
 // Range: 0 to 110%. Unsigned. 
 // Scale: Bits 11-28 (18 bits). MSB (Bit 28) = 64%. LSB ≈ 0.000488%.
 // -----------------------------------------------------------------------------
 uint32_t encode_engine_rpm(double rpm_percent, uint8_t sdi, uint8_t ssm);
+
+DecodedArincWord decode_engine_rpm(uint32_t word);
 
 #endif // ARINC_429_H

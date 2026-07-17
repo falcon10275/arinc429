@@ -24,11 +24,10 @@ volatile int keep_running = 1;
 void* arinc_sender_thread(void* arg)
 {
     udp_sender_t* sender = (udp_sender_t*)arg;
-    arinc429_word_t arinc_word;
     
     double local_altitude; 
-    int local_rpm; 
-    int local_bank_angle;
+    double local_rpm; 
+    double local_bank_angle;
 
     while (keep_running) {
  
@@ -36,7 +35,7 @@ void* arinc_sender_thread(void* arg)
         pthread_mutex_lock(&flight_data_mutex);
         local_altitude = altitude;
         local_rpm = rpm;
-        local_bank_angle = abs(bank_angle);
+        local_bank_angle = bank_angle;
         pthread_mutex_unlock(&flight_data_mutex);
 
         // 2. Send out the Altitude
@@ -44,22 +43,12 @@ void* arinc_sender_thread(void* arg)
         udp_sender_send(sender, alt_word);
 
         // 3. Send out the RPM
-        arinc_word.raw = 0;
-        arinc429_set_label(&arinc_word, ARINC_RPM_LABEL);       
-        arinc429_set_sdi(&arinc_word, 2);           
-        arinc429_set_data(&arinc_word, local_rpm);     
-        arinc429_set_ssm(&arinc_word, 3);           
-        arinc429_set_parity(&arinc_word, 1);       
-        udp_sender_send(sender, arinc_word.raw);
+        uint32_t rpm_word = encode_engine_rpm(local_rpm, 1, SSM_NORMAL_OPERATION);
+        udp_sender_send(sender, rpm_word);
 
         // 4. Send out the Bank Angle
-        arinc_word.raw = 0;
-        arinc429_set_label(&arinc_word, ARINC_BANK_ANGLE_LABEL);       
-        arinc429_set_sdi(&arinc_word, 2);           
-        arinc429_set_data(&arinc_word, local_bank_angle);     
-        arinc429_set_ssm(&arinc_word, 3);           
-        arinc429_set_parity(&arinc_word, 1);       
-        udp_sender_send(sender, arinc_word.raw);
+        uint32_t bank_angle_word = encode_bank_angle(local_bank_angle, 1, SSM_NORMAL_OPERATION);
+        udp_sender_send(sender, bank_angle_word);
 
          usleep(50000);
 

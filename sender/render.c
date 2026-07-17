@@ -23,10 +23,10 @@ void render_dashboard(void) {
 
     // Telemetry Dashboard
     attron(A_BOLD);
-    mvprintw(0, 2,  "ALTITUDE: %05d FT", (int)altitude);
-    mvprintw(0, 25, "RPM: %04d", rpm);
-    mvprintw(0, 40, "BANK: %03d DEG", bank_angle);
-    mvprintw(0, 58, "PITCH: %02d DEG", pitch_angle);
+    mvprintw(0, 2,  "ALTITUDE: %05d FT", (int) altitude);
+    mvprintw(0, 25, "RPM: %04d", (int) rpm);
+    mvprintw(0, 40, "BANK: %03d DEG", (int) bank_angle);
+    mvprintw(0, 58, "PITCH: %02d DEG", (int) pitch_angle);
     attroff(A_BOLD);
 
     draw_panel_borders();

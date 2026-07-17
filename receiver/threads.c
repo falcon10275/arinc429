@@ -54,7 +54,7 @@ void* thread_altimeter(void* arg) {
     WINDOW* win = (WINDOW*)arg;
     while (keep_running) {
         pthread_mutex_lock(&data_mutex);
-        int current_alt = fd.altitude;
+        double current_alt = fd.altitude;
         pthread_mutex_unlock(&data_mutex);
 
         pthread_mutex_lock(&screen_mutex);
@@ -69,19 +69,16 @@ void* thread_rpm(void* arg) {
     WINDOW* win = (WINDOW*)arg;
     while (keep_running) {
         pthread_mutex_lock(&data_mutex);
-        int base_rpm = fd.rpm;
+        double base_rpm = fd.rpm;
         pthread_mutex_unlock(&data_mutex);
         
-        int display_rpm = base_rpm;
-        if (display_rpm < 0) display_rpm = 0;
-
         pthread_mutex_lock(&screen_mutex);
         werase(win);
         box(win, 0, 0);
         mvwprintw(win, 0, 2, " ENGINE ");
-        mvwprintw(win, 2, 2, "RPM: %04d", display_rpm);
+        mvwprintw(win, 2, 2, "RPM: %04d", (int) base_rpm);
         
-        int bars = (display_rpm) / 400; 
+        int bars = (int)(base_rpm / 280.0); // The aircraft has a max of 2800 RPM
         mvwprintw(win, 3, 2, "[");
         for(int i=0; i<10; i++) waddch(win, i < bars ? '#' : ' ');
         waddch(win, ']');
@@ -124,14 +121,14 @@ void* thread_heading(void* arg) {
     WINDOW* win = (WINDOW*)arg;
     while (keep_running) {
         pthread_mutex_lock(&data_mutex);
-        int current_hdg = fd.bank_angle;
+        double current_hdg = fd.bank_angle;
         pthread_mutex_unlock(&data_mutex);
 
         pthread_mutex_lock(&screen_mutex);
         werase(win);
         box(win, 0, 0);
         mvwprintw(win, 0, 2, " BANK ANGLE ");
-        mvwprintw(win, 2, 4, "%03d DEG", current_hdg);
+        mvwprintw(win, 2, 4, "%lf DEG", current_hdg);
         wrefresh(win);
         pthread_mutex_unlock(&screen_mutex);
         usleep(100000); 
@@ -233,16 +230,28 @@ void* thread_receive_429_udp(void* arg) {
                  // Add to queue
                 log_queue[log_head].raw = word.raw;
                 log_head = (log_head + 1) % LOG_QUEUE_SIZE; // Advance head, wrap around
-                switch (word.fields.label)
+                
+                // 1. Extract the human-readable label from the word
+                uint8_t label = extract_arinc_label(word.raw);
+                DecodedArincWord decoded_word;
+                switch (label)
                 {
-                    case ARINC_ALTITUDE_LABEL : fd.altitude = word.fields.data;
+                    case LABEL_ALTITUDE : 
+                        decoded_word = decode_altitude(word.raw);
+                        fd.altitude = decoded_word.value;
                         break;
-                    case ARINC_RPM_LABEL : fd.rpm = word.fields.data;
+                    case LABEL_BANK_ANGLE : 
+                        decoded_word = decode_bank_angle(word.raw);
+                        fd.bank_angle = decoded_word.value;
                         break;
-                   case ARINC_BANK_ANGLE_LABEL : fd.bank_angle = word.fields.data;
+                   case LABEL_ENGINE_RPM : 
+                        decoded_word = decode_engine_rpm(word.raw);
+                        fd.rpm = decoded_word.value;
                         break;
                     default : break;
                 }
+
+
             pthread_mutex_unlock(&data_mutex);
         }
     }
